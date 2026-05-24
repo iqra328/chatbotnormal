@@ -11,32 +11,49 @@ const app = express();
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 
-// Middleware
-app.use(cors());
+// ✅ CORS – allow both localhost (for dev) and your Netlify frontend
+const allowedOrigins = [
+  'http://localhost:5500',     // Live Server default
+  'http://localhost:3000',     // Python HTTP server
+  'http://127.0.0.1:5500',
+  'https://meek-yeot-b557e0.netlify.app', // your Netlify URL (change if different)
+  'https://*.netlify.app'      // all Netlify previews (optional)
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.options('*', cors());
 app.use(express.json());
 app.use(limiter);
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB Connected Successfully'))
-.catch((err) => console.error('❌ MongoDB Connection Error:', err));
+// MongoDB Connection (deprecated options removed)
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected Successfully'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // Routes
 app.use('/api/chat', chatRoutes);
 
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
